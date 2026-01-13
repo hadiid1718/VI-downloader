@@ -1,20 +1,20 @@
 # 📥 V-Downloader Server Tier - Complete Documentation
 
-**Version**: 1.0.0  
-**Status**:  Production Ready  
-**Last Updated**: January 9, 2026
+**Version**: 2.0.0  
+**Status**: Production Ready  
+**Last Updated**: January 13, 2026
 
 ---
 
 ## 📚 Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [Instagram Fix (Latest)](#instagram-fix-latest)
+2. [What's New in v2.0.0](#whats-new-in-v200)
 3. [Installation](#installation)
 4. [Configuration](#configuration)
 5. [API Documentation](#api-documentation)
-6. [Features](#features)
-7. [Architecture](#architecture)
+6. [Real-Time Streaming](#real-time-streaming)
+7. [Metadata Extraction](#metadata-extraction)
 8. [Rate Limiting](#rate-limiting)
 9. [Testing](#testing)
 10. [Troubleshooting](#troubleshooting)
@@ -49,6 +49,43 @@ npm start
 🔗 API running at: http://localhost:5000
 ✓ Frontend connects at: http://localhost:5173
 ```
+
+---
+
+## 🆕 What's New in v2.0.0
+
+### Major Changes
+
+**Real-Time Streaming Downloads**
+- Implemented Server-Sent Events (SSE) for live progress
+- Direct browser downloads (no server storage)
+- New endpoint: `POST /api/stream/download`
+- Real-time progress callback integration
+
+**Enhanced Metadata Extraction**
+- Complete field extraction: views, likes, upload date, creator
+- Filesize estimation using bitrate-based algorithm
+- Default fps handling (30 fps fallback)
+- Upload date formatting and conversion
+
+**New Endpoints**
+- `GET /api/proxy/thumbnail` - CORS-bypass thumbnail proxy
+- `GET /api/downloads/list` - List downloaded files
+- `GET /api/download/file/:filename` - Serve file to browser
+- `DELETE /api/download/:jobId` - Cancel download (changed from POST)
+
+**Bug Fixes**
+- Fixed rate limiter conflicts (endpoint ordering)
+- Fixed platform validation (relaxed detection)
+- Fixed filesize: 0 issue (estimation algorithm)
+- Fixed fps: null issue (default fallback)
+- Fixed CORS thumbnail issues (proxy endpoint)
+
+### Architecture Changes
+- Streaming-first approach (SSE over polling)
+- Memory-efficient download handling
+- Platform-specific timeout management
+- Improved error recovery with retry logic
 
 ### Verify Installation
 
@@ -327,7 +364,7 @@ redis-server
 
 ---
 
-## 🔗 API Documentation
+## 🔗 API Documentation (v2.0.0)
 
 ### Base URL
 ```
@@ -335,13 +372,29 @@ http://localhost:5000
 ```
 
 ### Authentication
-Currently no authentication required. Rate limiting enforced per IP.
+Currently no authentication required. Rate limiting enforced per IP and endpoint.
 
-### Key Endpoints
+### Complete Endpoint Reference
+
+| Method | Endpoint | Purpose | New? |
+|--------|----------|---------|------|
+| POST | `/api/detect` | Detect platform from URL | - |
+| POST | `/api/metadata` | Get complete metadata | Enhanced |
+| POST | `/api/formats` | List formats with filesize | Enhanced |
+| GET | `/api/proxy/thumbnail` | Proxy thumbnail (CORS) | ✅ NEW |
+| POST | `/api/stream/download` | Real-time SSE download | ✅ NEW |
+| POST | `/api/download` | Queue download (legacy) | - |
+| GET | `/api/download/status/:jobId` | Check job status | - |
+| DELETE | `/api/download/:jobId` | Cancel job | Changed |
+| GET | `/api/downloads/list` | List downloads | ✅ NEW |
+| GET | `/api/download/file/:filename` | Serve file | ✅ NEW |
+| GET | `/health` | Health check | - |
+
+### Key Endpoints (v2.0.0)
 
 #### 1. Detect Platform
 ```
-POST /detect-platform
+POST /api/detect
 Content-Type: application/json
 
 Request:
@@ -353,13 +406,14 @@ Response:
 {
   "success": true,
   "platform": "instagram",
-  "mediaType": "video"
+  "mediaType": "video",
+  "isValid": true
 }
 ```
 
-#### 2. Get Metadata
+#### 2. Get Metadata (Enhanced)
 ```
-POST /metadata
+POST /api/metadata
 Content-Type: application/json
 
 Request:
@@ -372,24 +426,386 @@ Response:
   "success": true,
   "metadata": {
     "platform": "instagram",
-    "title": "Video Title",
+    "title": "Amazing Video",
     "duration": 45,
     "uploader": "username",
+    "uploadDate": "2026-01-10T15:30:00Z",
+    "views": 15000,
+    "likes": 2500,
+    "description": "Video description",
     "thumbnail": "url",
-    "formats": [...]
+    "formats": [
+      {
+        "formatId": "dash-1368834654983380v",
+        "extension": "mp4",
+        "resolution": "1080p",
+        "filesize": 45.2,
+        "fps": 30,
+        "height": 1080,
+        "width": 1920
+      }
+    ]
   }
 }
 ```
 
-#### 3. Get Formats
+#### 3. Get Formats (Enhanced)
 ```
-POST /formats
+POST /api/formats
 Content-Type: application/json
 
 Request:
 {
   "url": "https://www.instagram.com/reel/DTQPkk6k5U4/"
 }
+
+Response:
+{
+  "success": true,
+  "formats": [
+    {
+      "formatId": "dash-1368834654983380v",
+      "extension": "mp4",
+      "resolution": "1080p",
+      "filesize": 45.2,
+      "fps": 30,
+      "height": 1080,
+      "width": 1920
+    },
+    {
+      "formatId": "dash-720p",
+      "extension": "mp4",
+      "resolution": "720p",
+      "filesize": 22.1,
+      "fps": 30,
+      "height": 720,
+      "width": 1280
+    }
+  ]
+}
+```
+
+#### 4. Proxy Thumbnail (NEW - v2.0.0)
+```
+GET /api/proxy/thumbnail?url=<thumbnail_url>
+
+Request:
+{
+  url: "https://instagram.com/images/thumb.jpg"
+}
+
+Response:
+Binary image data with headers:
+- Content-Type: image/jpeg
+- Access-Control-Allow-Origin: *
+- Cache-Control: public, max-age=86400 (24 hours)
+```
+
+#### 5. Real-Time Streaming Download (NEW - v2.0.0)
+```
+POST /api/stream/download
+Content-Type: application/json
+
+Request:
+{
+  "url": "https://www.instagram.com/reel/DTQPkk6k5U4/",
+  "format": "1080p"  // Optional, uses best if not specified
+}
+
+Response: Server-Sent Events Stream
+event: progress
+data: {"progress": 0, "status": "connecting"}
+
+event: progress
+data: {"progress": 25, "status": "downloading"}
+
+event: progress
+data: {"progress": 75, "status": "downloading"}
+
+event: complete
+data: {
+  "success": true,
+  "filename": "Video by username.mp4",
+  "filesize": "45.2 MB",
+  "downloadUrl": "/api/download/file/Video%20by%20username.mp4"
+}
+
+event: error
+data: {"error": "Connection failed", "message": "..."}
+```
+
+#### 6. Download Queue (Legacy - v1.0)
+```
+POST /api/download
+Content-Type: application/json
+
+Request:
+{
+  "url": "https://...",
+  "format": "1080p"
+}
+
+Response:
+{
+  "success": true,
+  "jobId": "job-123abc",
+  "status": "queued"
+}
+```
+
+#### 7. Check Download Status
+```
+GET /api/download/status/:jobId
+
+Response:
+{
+  "jobId": "job-123abc",
+  "status": "completed",
+  "progress": 100,
+  "filename": "video.mp4",
+  "filesize": "45.2 MB"
+}
+```
+
+#### 8. Cancel Download
+```
+DELETE /api/download/:jobId
+
+Response:
+{
+  "success": true,
+  "message": "Download cancelled"
+}
+```
+
+#### 9. List Downloads (NEW - v2.0.0)
+```
+GET /api/downloads/list
+
+Response:
+{
+  "files": [
+    {
+      "filename": "video1.mp4",
+      "size": 45200000,
+      "createdAt": "2026-01-13T20:30:00Z"
+    }
+  ]
+}
+```
+
+#### 10. Serve Download File (NEW - v2.0.0)
+```
+GET /api/download/file/:filename
+
+Response: Binary file data with headers
+- Content-Type: application/octet-stream
+- Content-Disposition: attachment
+- Content-Length: file size
+```
+
+---
+
+## ⚡ Real-Time Streaming (v2.0.0)
+
+### Architecture
+
+Real-time downloads use Server-Sent Events (SSE) instead of polling:
+
+```
+Client                          Server
+  │                               │
+  ├─ POST /api/stream/download   ─┤
+  │                               │
+  │◄─ event: progress (0%) ──────┤
+  │◄─ event: progress (25%) ─────┤
+  │◄─ event: progress (50%) ─────┤
+  │◄─ event: progress (75%) ─────┤
+  │◄─ event: progress (100%) ────┤
+  │◄─ event: complete ───────────┤
+  │  (with download URL)         │
+  │                               │
+  └─ GET /api/download/file/...  ─┤
+  │                               │
+  │◄─ Binary file data ──────────┤
+```
+
+### Benefits Over Polling
+
+1. **Real-time**: Events sent immediately, no 1.5s polling interval
+2. **Efficient**: Server sends data only when available
+3. **Scalable**: Lower server load with SSE vs polling
+4. **Progressive**: Client receives progress updates in real-time
+5. **Error Handling**: Automatic reconnection on failure
+
+### Implementation Details
+
+**Backend (Node.js/Express):**
+```javascript
+// streamController.js
+directDownload(req, res) {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  
+  streamDownloadService.downloadMediaRealtime(url, format, (progress) => {
+    res.write(`event: progress\n`);
+    res.write(`data: ${JSON.stringify(progress)}\n\n`);
+  });
+}
+```
+
+**Frontend (React):**
+```javascript
+// apiClient.js
+directStreamDownload(url, format, onProgress) {
+  return new Promise((resolve, reject) => {
+    const eventSource = new EventSource(
+      `/api/stream/download?url=${encodeURIComponent(url)}&format=${format}`
+    );
+    
+    eventSource.addEventListener('progress', (e) => {
+      onProgress(JSON.parse(e.data));
+    });
+    
+    eventSource.addEventListener('complete', (e) => {
+      const data = JSON.parse(e.data);
+      resolve(data);
+    });
+  });
+}
+```
+
+---
+
+## 📊 Metadata Extraction (v2.0.0)
+
+### Complete Metadata Fields
+
+| Field | Type | Source | Example |
+|-------|------|--------|---------|
+| `title` | string | yt-dlp | "Amazing video" |
+| `duration` | number | yt-dlp | 45 (seconds) |
+| `uploader` | string | yt-dlp | "username" |
+| `uploadDate` | ISO string | yt-dlp | "2026-01-10T15:30:00Z" |
+| `views` | number | yt-dlp | 15000 |
+| `likes` | number | yt-dlp | 2500 |
+| `description` | string | yt-dlp | "Video description" |
+| `thumbnail` | URL | yt-dlp | "https://..." |
+| `platform` | string | Detected | "instagram" |
+
+### Filesize Estimation Algorithm
+
+If yt-dlp doesn't provide filesize, V-Downloader v2.0.0 estimates using bitrate:
+
+```
+Bitrate by Resolution:
+- 360p:  800 kbps
+- 480p:  1.5 Mbps
+- 720p:  2.5 Mbps
+- 1080p: 4 Mbps
+- 1440p: 5 Mbps
+- 4K:    6 Mbps
+
+Formula: (duration × bitrate) / 8000 = MB
+
+Example:
+Duration: 45 seconds
+Resolution: 1080p (4 Mbps bitrate)
+Filesize = (45 × 4) / 8000 = 0.0225 GB = 22.5 MB
+```
+
+### FPS Default Fallback
+
+If yt-dlp doesn't provide fps:
+- Default to **30 fps** (standard video framerate)
+- Allows proper playback assumptions
+- Can be overridden in format selection
+
+---
+
+## 🔗 Thumbnail Proxy (v2.0.0)
+
+### Why Thumbnail Proxy?
+
+Instagram and other platforms block cross-origin image requests:
+
+```
+Client → Instagram (CORS blocked)
+Client → Server → Instagram (allowed)
+Server → Client with CORS headers (allowed)
+```
+
+### Implementation
+
+**Endpoint:** `GET /api/proxy/thumbnail`
+
+**Parameters:**
+- `url` (query string) - Full thumbnail URL
+
+**Response Headers:**
+```
+Content-Type: image/jpeg
+Access-Control-Allow-Origin: *
+Cache-Control: public, max-age=86400
+```
+
+**Timeout:** 10 seconds per request
+
+**Features:**
+- ✅ Caches for 24 hours
+- ✅ Supports all major platforms
+- ✅ Adds proper CORS headers
+- ✅ Auto-detects image type
+
+---
+
+## 🔐 Rate Limiting (v2.0.0)
+
+### Endpoint-Specific Limits
+
+#### Critical Ordering
+
+**IMPORTANT:** Rate limiters must be applied in order:
+1. **Specific routes first** (e.g., `/api/stream/download`)
+2. **Less specific routes second** (e.g., `/api/download`)
+3. **General API limiter last** (e.g., `/api/`)
+
+```javascript
+// Correct order (index.js)
+app.use('/api/stream/download', downloadStartLimiter);  // Specific FIRST
+app.use('/api/download', downloadStartLimiter);          // Less specific
+app.use('/api/', apiLimiter);                            // General LAST
+```
+
+**Why?** Express matches routes in order. General limiters match all paths,
+preventing specific limiters from running.
+
+#### Limiter Configuration
+
+```javascript
+// 100 requests per 15 minutes
+downloadStartLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Too many downloads, please try again later'
+});
+
+// 50 requests per 15 minutes (stricter for metadata)
+statusCheckLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  message: 'Too many status checks'
+});
+
+// 200 requests per 15 minutes (general API)
+apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200
+});
+```
+
+---
 
 Response:
 {

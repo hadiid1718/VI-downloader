@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const config = require('./config/config');
 const downloadRoutes = require('./routes/downloadRoutes');
+const streamRoutes = require('./routes/streamRoutes');
 const { apiLimiter, downloadStartLimiter, statusCheckLimiter } = require('./middleware/rateLimiter');
 const { errorHandler, asyncHandler } = require('./utils/errors');
 const Logger = require('./utils/logger');
@@ -50,14 +51,19 @@ app.use((req, res, next) => {
 });
 
 // Apply specific limiters FIRST (before general limiter)
+app.use('/api/stream/download', downloadStartLimiter); // Moderate for stream downloads
 app.use('/api/download/status', statusCheckLimiter); // Lenient for status checks (300/min)
 app.use('/api/download/cancel', statusCheckLimiter); // Lenient for cancel requests
 app.use('/api/download', downloadStartLimiter);      // Moderate for new downloads (20/min)
 
+// API Routes (BEFORE general rate limiter)
+app.use('/api', downloadRoutes);
+app.use('/api', streamRoutes);
+
 // Apply general rate limiter to all /api routes LAST
 app.use('/api/', apiLimiter);
 
-// Health check (before other routes to skip rate limiting in some cases)
+// Health check (outside of rate limiting)
 app.get('/health', (req, res) => {
   res.json({
     success: true,
@@ -65,9 +71,6 @@ app.get('/health', (req, res) => {
     timestamp: new Date(),
   });
 });
-
-// API Routes
-app.use('/api', downloadRoutes);
 
 // 404 handler
 app.use((req, res) => {

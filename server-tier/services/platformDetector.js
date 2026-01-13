@@ -76,8 +76,8 @@ class PlatformDetector {
   }
 
   static validateInstagramUrl(url) {
-    const regex = /instagram\.com\/(reel|p|tv)\//i;
-    return regex.test(url);
+    // Accept any Instagram URL - validation happens during download
+    return /instagram\.com|instagr\.am/i.test(url);
   }
 
   static detectInstagramMediaType(url) {
@@ -96,8 +96,8 @@ class PlatformDetector {
   }
 
   static validateTwitterUrl(url) {
-    const regex = /(twitter|x)\.com\/\w+\/status\/\d+/i;
-    return regex.test(url);
+    // Accept any Twitter/X URL - validation happens during download
+    return /(twitter|x)\.com/i.test(url);
   }
 
   static detectTwitterMediaType(url) {
@@ -106,8 +106,8 @@ class PlatformDetector {
   }
 
   static validateFacebookUrl(url) {
-    const regex = /facebook\.com\/(watch|video|photo)/i;
-    return regex.test(url) || /facebook\.com\/.*\/video/i.test(url);
+    // Accept any Facebook URL - validation happens during download
+    return /facebook\.com/i.test(url);
   }
 
   static detectFacebookMediaType(url) {

@@ -378,3 +378,46 @@ exports.healthCheck = asyncHandler(async (req, res) => {
     timestamp: new Date(),
   });
 });
+
+/**
+ * Proxy thumbnail to avoid CORS issues
+ */
+exports.proxyThumbnail = asyncHandler(async (req, res) => {
+  const axios = require('axios');
+  const { url } = req.query;
+
+  if (!url) {
+    return res.status(400).json({
+      success: false,
+      message: 'URL parameter is required',
+    });
+  }
+
+  try {
+    const response = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+
+    // Set appropriate headers for the image
+    res.set('Content-Type', response.headers['content-type'] || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+    res.set('Access-Control-Allow-Origin', '*');
+    
+    res.send(response.data);
+  } catch (error) {
+    logger.error('Thumbnail proxy error:', {
+      url,
+      error: error.message,
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to proxy thumbnail',
+      error: error.message,
+    });
+  }
+});

@@ -80,4 +80,11 @@ router.get('/queue/stats', downloadController.getQueueStats);
  */
 router.get('/health', downloadController.healthCheck);
 
+/**
+ * @route   GET /api/proxy/thumbnail
+ * @desc    Proxy thumbnail to avoid CORS issues
+ * @access  Public
+ */
+router.get('/proxy/thumbnail', downloadController.proxyThumbnail);
+
 module.exports = router;

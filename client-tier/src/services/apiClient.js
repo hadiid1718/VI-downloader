@@ -97,7 +97,128 @@ class APIClient {
   }
 
   /**
-   * Start download (queue it)
+   * Start direct streaming download (downloads to user's system)
+   * Uses Server-Sent Events (SSE) for real-time progress
+   */
+  async directStreamDownload(url, formatId = 'best', onProgress = null) {
+    const self = this;
+    return new Promise((resolve, reject) => {
+      (async () => {
+        try {
+          const response = await fetch(`${self.baseURL}/api/stream/download`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ url, format: formatId }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || `HTTP ${response.status}`);
+          }
+
+          // Read response as stream
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let downloadUrl = null;
+          let filename = null;
+
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            // Parse Server-Sent Events (SSE) format
+            const lines = buffer.split('\n');
+            buffer = lines[lines.length - 1]; // Keep incomplete line
+
+            for (let i = 0; i < lines.length - 1; i++) {
+              const line = lines[i];
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+
+                  // Call progress callback
+                  if (onProgress) {
+                    onProgress(data);
+                  }
+
+                  // Capture download info
+                  if (data.downloadUrl) {
+                    downloadUrl = data.downloadUrl;
+                    filename = data.file;
+                  }
+
+                  // Handle completion
+                  if (data.status === 'completed') {
+                    resolve({
+                      success: true,
+                      status: 'completed',
+                      downloadUrl,
+                      filename,
+                      fileSizeMB: data.fileSizeMB,
+                    });
+                    return;
+                  }
+
+                  // Handle error
+                  if (data.status === 'error') {
+                    reject(new Error(data.message || 'Download failed'));
+                    return;
+                  }
+                } catch (e) {
+                  console.error('Failed to parse SSE data:', line, e);
+                }
+              }
+            }
+          }
+
+          reject(new Error('Download stream ended without completion'));
+        } catch (error) {
+          console.error('Stream download error:', error);
+          reject(error);
+        }
+      })();
+    });
+  }
+
+  /**
+   * Download file from server to user's system
+   */
+  async downloadFile(filename) {
+    try {
+      const response = await fetch(`${this.baseURL}/api/download/file/${encodeURIComponent(filename)}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      // Get the blob
+      const blob = await response.blob();
+
+      // Create a temporary download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      return true;
+    } catch (error) {
+      console.error('File download error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Start queued download (legacy, saves on server)
    */
   async startDownload(url, formatId = 'best', filename = null) {
     return this.request('/api/download', {
@@ -119,8 +240,8 @@ class APIClient {
    * Cancel download job
    */
   async cancelDownload(jobId) {
-    return this.request(`/api/download/cancel/${jobId}`, {
-      method: 'POST',
+    return this.request(`/api/download/${jobId}`, {
+      method: 'DELETE',
     });
   }
 

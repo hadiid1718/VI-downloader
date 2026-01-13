@@ -3,6 +3,7 @@ import { HiExclamationCircle, HiClock } from 'react-icons/hi'
 import { MdDownload, MdCheckCircle, MdClose } from 'react-icons/md'
 import { FaInstagram, FaTiktok, FaTwitter, FaFacebook, FaPinterest } from 'react-icons/fa'
 import Hero from '../components/Hero'
+import Download from './Download'
 import apiClient from '../services/apiClient'
 import '../styles/Home.css'
 
@@ -26,7 +27,7 @@ const Home = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState('')
-  const [showDownloadModal, setShowDownloadModal] = useState(false)
+  const [showDownloadPage, setShowDownloadPage] = useState(false)
   
   // Polling Reference
   const statusIntervalRef = useRef(null)
@@ -48,6 +49,13 @@ const Home = () => {
     }
   }, [metadata])
 
+  // Utility function to proxy thumbnails through server to avoid CORS issues
+  const getThumbnailProxyUrl = (thumbnailUrl) => {
+    if (!thumbnailUrl) return null;
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+    return `${API_BASE_URL}/api/proxy/thumbnail?url=${encodeURIComponent(thumbnailUrl)}`;
+  }
+
   const handleDetectPlatform = async () => {
     if (!url.trim()) {
       setError('Please enter a URL')
@@ -67,6 +75,8 @@ const Home = () => {
         setPlatform(response.platform)
         await fetchMetadata()
         await fetchFormats()
+        // Show the download page after successful URL analysis
+        setShowDownloadPage(true)
       } else {
         setError(response.message || 'Failed to detect platform')
       }
@@ -83,7 +93,10 @@ const Home = () => {
       const data = await apiClient.getMetadata(url.trim())
 
       if (data.success && data.metadata) {
+        console.log('Metadata fetched:', data.metadata)
         setMetadata(data.metadata)
+      } else {
+        console.warn('Failed to fetch metadata:', data.message || 'Unknown error')
       }
     } catch (err) {
       console.error('Failed to fetch metadata:', err)
@@ -151,7 +164,6 @@ const Home = () => {
     setLoading(true)
     setError(null)
     setSuccessMessage('')
-    setShowDownloadModal(false)
 
     try {
       const downloadData = {
@@ -349,7 +361,24 @@ const Home = () => {
     setDownloadStatus(null)
     setFileSize(null)
     setFilename('')
-    setShowDownloadModal(false)
+    setShowDownloadPage(false)
+  }
+
+  // If download page is shown, render Download component
+  if (showDownloadPage && platform && formats.length > 0) {
+    return (
+      <Download 
+        url={url}
+        platform={platform}
+        metadata={metadata}
+        formats={formats}
+        onBack={() => {
+          setShowDownloadPage(false)
+          resetForm()
+        }}
+        getPlatformIcon={getPlatformIcon}
+      />
+    )
   }
 
   return (
@@ -409,7 +438,7 @@ const Home = () => {
             {metadata && (
               <div className="metadata-card">
                 {metadata.thumbnail && (
-                  <img src={metadata.thumbnail} alt={metadata.title} className="thumbnail" />
+                  <img src={getThumbnailProxyUrl(metadata.thumbnail)} alt={metadata.title} className="thumbnail" />
                 )}
                 <div className="metadata-content">
                   <h3>{metadata.title || 'Untitled'}</h3>

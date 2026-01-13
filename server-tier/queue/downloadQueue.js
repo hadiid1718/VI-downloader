@@ -14,8 +14,10 @@ const downloadQueue = new Queue('media-downloads', {
     db: config.redis.db || 0,
   },
   settings: {
-    stalledInterval: 30000, // check stalled jobs every 30s
-    lockDuration: 10 * 60 * 1000, // 10 minutes lock (important for long downloads)
+    stalledInterval: 60000, // check stalled jobs every 60s (increased from 30s)
+    maxStalledCount: 10, // allow more stalled attempts (default 2)
+    lockDuration: 30 * 60 * 1000, // 30 minutes lock (increased from 10 minutes for long downloads)
+    lockRenewTime: 15 * 60 * 1000, // renew lock every 15 minutes
   },
 });
 

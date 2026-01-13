@@ -8,6 +8,29 @@ const InstagramHandler = require('./instagramHandler');
 
 const execAsync = promisify(exec);
 
+/**
+ * Utility function to estimate filesize based on resolution and duration
+ * Uses rough bitrate estimation: 
+ * - 360p: ~800 kbps, 480p: ~1.5 Mbps, 720p: ~2.5 Mbps, 1080p+: ~4-6 Mbps
+ */
+function estimateFilesize(height, width, duration, format = 'mp4') {
+  if (!height || !width || !duration) return 0;
+  
+  // Estimate bitrate based on resolution (in kbps)
+  let bitrate = 800; // base bitrate for 360p
+  
+  if (height >= 2160) bitrate = 6000;      // 4K
+  else if (height >= 1440) bitrate = 5000; // 1440p
+  else if (height >= 1080) bitrate = 4000; // 1080p
+  else if (height >= 720) bitrate = 2500;  // 720p
+  else if (height >= 480) bitrate = 1500;  // 480p
+  else bitrate = 800;                       // 360p or lower
+  
+  // Calculate filesize in MB: (duration * bitrate) / 8000
+  const fileSizeMB = (duration * bitrate) / 8000;
+  return parseFloat(fileSizeMB.toFixed(2));
+}
+
 class DownloadService {
   /**
    * Retry logic for flaky network requests
@@ -58,10 +81,12 @@ class DownloadService {
 
         const metadata = instagramResult.metadata;
         
-        // Extract thumbnail safely
-        let thumbnail = metadata.thumbnail || null;
-        if (metadata.thumbnails && metadata.thumbnails.length > 0) {
-          thumbnail = metadata.thumbnails[metadata.thumbnails.length - 1].url;
+        // Extract thumbnail safely - try multiple sources
+        let thumbnail = null;
+        if (metadata.thumbnail) {
+          thumbnail = metadata.thumbnail;
+        } else if (metadata.thumbnails && Array.isArray(metadata.thumbnails) && metadata.thumbnails.length > 0) {
+          thumbnail = metadata.thumbnails[metadata.thumbnails.length - 1].url || metadata.thumbnails[0].url;
         }
 
         // Build formats array
@@ -69,25 +94,42 @@ class DownloadService {
         if (metadata.formats && metadata.formats.length > 0) {
           formats = metadata.formats
             .filter(fmt => fmt && (fmt.ext || fmt.format_id))
-            .map((fmt) => ({
-              formatId: fmt.format_id || fmt.ext || 'unknown',
-              extension: fmt.ext || 'mp4',
-              resolution: (fmt.height && fmt.width) ? `${fmt.height}p` : (fmt.format || 'unknown'),
-              filesize: fmt.filesize || fmt.size || 0,
-              fps: fmt.fps || null,
-              vcodec: fmt.vcodec || null,
-              acodec: fmt.acodec || null,
-            }))
-            .sort((a, b) => b.filesize - a.filesize);
+            .map((fmt) => {
+              // Get resolution info
+              const height = fmt.height || parseInt(fmt.format?.split('x')[1]) || 0;
+              const width = fmt.width || parseInt(fmt.format?.split('x')[0]) || 0;
+
+              // Calculate or get filesize
+              let filesize = fmt.filesize || fmt.size || 0;
+              if (!filesize || filesize === 0) {
+                filesize = estimateFilesize(height, width, metadata.duration || 0);
+              } else {
+                filesize = parseFloat((filesize / (1024 * 1024)).toFixed(2));
+              }
+
+              return {
+                formatId: fmt.format_id || fmt.ext || 'unknown',
+                extension: fmt.ext || 'mp4',
+                resolution: height ? `${height}p` : (fmt.format || 'unknown'),
+                filesize: filesize,
+                fps: fmt.fps || fmt.frame_rate || 30,
+                height: height,
+                width: width,
+              };
+            })
+            .sort((a, b) => b.height - a.height);
         }
 
         return {
           success: true,
           metadata: {
-            title: metadata.title || 'Unknown',
+            title: metadata.title || metadata.alt_title || 'Unknown',
             duration: metadata.duration || 0,
-            uploader: metadata.uploader || metadata.channel || 'Unknown',
-            uploadDate: metadata.upload_date || null,
+            uploader: metadata.uploader || metadata.channel || metadata.creator || 'Unknown',
+            uploadDate: metadata.upload_date || metadata.release_date || null,
+            views: metadata.view_count || null,
+            likes: metadata.like_count || null,
+            description: metadata.description || null,
             thumbnail: thumbnail,
             formats: formats,
             platform,
@@ -112,10 +154,12 @@ class DownloadService {
         return JSON.parse(stdout);
       }, 3, 3000); // 3 retries with 3 second initial delay
 
-      // Extract thumbnail safely
-      let thumbnail = metadata.thumbnail || null;
-      if (metadata.thumbnails && metadata.thumbnails.length > 0) {
-        thumbnail = metadata.thumbnails[metadata.thumbnails.length - 1].url;
+      // Extract thumbnail safely - try multiple sources
+      let thumbnail = null;
+      if (metadata.thumbnail) {
+        thumbnail = metadata.thumbnail;
+      } else if (metadata.thumbnails && Array.isArray(metadata.thumbnails) && metadata.thumbnails.length > 0) {
+        thumbnail = metadata.thumbnails[metadata.thumbnails.length - 1].url || metadata.thumbnails[0].url;
       }
 
       // Build formats array with fallback values
@@ -123,25 +167,42 @@ class DownloadService {
       if (metadata.formats && metadata.formats.length > 0) {
         formats = metadata.formats
           .filter(fmt => fmt && (fmt.ext || fmt.format_id))
-          .map((fmt) => ({
-            formatId: fmt.format_id || fmt.ext || 'unknown',
-            extension: fmt.ext || 'mp4',
-            resolution: (fmt.height && fmt.width) ? `${fmt.height}p` : (fmt.format || 'unknown'),
-            filesize: fmt.filesize || fmt.size || 0,
-            fps: fmt.fps || null,
-            vcodec: fmt.vcodec || null,
-            acodec: fmt.acodec || null,
-          }))
-          .sort((a, b) => b.filesize - a.filesize);
+          .map((fmt) => {
+            // Get resolution info
+            const height = fmt.height || parseInt(fmt.format?.split('x')[1]) || 0;
+            const width = fmt.width || parseInt(fmt.format?.split('x')[0]) || 0;
+
+            // Calculate or get filesize
+            let filesize = fmt.filesize || fmt.size || 0;
+            if (!filesize || filesize === 0) {
+              filesize = estimateFilesize(height, width, metadata.duration || 0);
+            } else {
+              filesize = parseFloat((filesize / (1024 * 1024)).toFixed(2));
+            }
+
+            return {
+              formatId: fmt.format_id || fmt.ext || 'unknown',
+              extension: fmt.ext || 'mp4',
+              resolution: height ? `${height}p` : (fmt.format || 'unknown'),
+              filesize: filesize,
+              fps: fmt.fps || fmt.frame_rate || 30,
+              height: height,
+              width: width,
+            };
+          })
+          .sort((a, b) => b.height - a.height);
       }
 
       return {
         success: true,
         metadata: {
-          title: metadata.title || 'Unknown',
+          title: metadata.title || metadata.alt_title || 'Unknown',
           duration: metadata.duration || 0,
-          uploader: metadata.uploader || metadata.channel || 'Unknown',
-          uploadDate: metadata.upload_date || null,
+          uploader: metadata.uploader || metadata.channel || metadata.creator || 'Unknown',
+          uploadDate: metadata.upload_date || metadata.release_date || null,
+          views: metadata.view_count || null,
+          likes: metadata.like_count || null,
+          description: metadata.description || null,
           thumbnail: thumbnail,
           formats: formats,
           platform,
