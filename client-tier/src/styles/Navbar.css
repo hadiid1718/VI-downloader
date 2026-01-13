@@ -1,0 +1,213 @@
+.navbar {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+  transition: var(--transition);
+}
+
+.navbar:hover {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.nav-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 80px;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--purple) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-decoration: none;
+  transition: var(--transition);
+  letter-spacing: -0.5px;
+}
+
+.nav-logo:hover {
+  transform: scale(1.05);
+  filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.4));
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  color: var(--primary-color);
+  filter: drop-shadow(0 2px 8px rgba(99, 102, 241, 0.3));
+  transition: var(--transition);
+}
+
+.nav-logo:hover .logo-icon {
+  transform: rotate(10deg) scale(1.1);
+}
+
+.nav-menu {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  list-style: none;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  color: var(--text-primary);
+  text-decoration: none;
+  border-radius: 10px;
+  transition: var(--transition-fast);
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  position: relative;
+}
+
+.nav-link::before {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  background: linear-gradient(135deg, var(--primary-color), var(--purple));
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+  border-radius: 2px;
+}
+
+.nav-link:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1));
+  color: var(--primary-color);
+  transform: translateY(-2px);
+}
+
+.nav-link:hover::before {
+  transform: scaleX(1);
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  transition: var(--transition-fast);
+}
+
+.nav-link:hover .nav-icon {
+  transform: scale(1.15);
+}
+
+.nav-toggle {
+  display: none;
+  flex-direction: column;
+  cursor: pointer;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  transition: var(--transition);
+}
+
+.nav-toggle:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.bar {
+  width: 28px;
+  height: 3px;
+  background: linear-gradient(135deg, var(--primary-color), var(--purple));
+  border-radius: 3px;
+  transition: var(--transition);
+}
+
+.bar.active:nth-child(1) {
+  transform: rotate(45deg) translate(9px, 9px);
+}
+
+.bar.active:nth-child(2) {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.bar.active:nth-child(3) {
+  transform: rotate(-45deg) translate(9px, -9px);
+}
+
+/* Responsive */
+@media screen and (max-width: 768px) {
+  .nav-container {
+    height: 70px;
+    padding: 0 20px;
+  }
+
+  .nav-toggle {
+    display: flex;
+  }
+
+  .nav-menu {
+    position: fixed;
+    left: -100%;
+    top: 70px;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    width: 100%;
+    text-align: center;
+    transition: var(--transition);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    padding: 20px 0;
+    gap: 0;
+    border-top: 1px solid rgba(99, 102, 241, 0.1);
+  }
+
+  .nav-menu.active {
+    left: 0;
+    animation: slide-down 0.3s ease;
+  }
+
+  @keyframes slide-down {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .nav-link {
+    width: 100%;
+    justify-content: center;
+    padding: 16px 20px;
+    border-radius: 0;
+    margin: 0 20px;
+    width: calc(100% - 40px);
+  }
+
+  .nav-link::before {
+    display: none;
+  }
+
+  .nav-logo {
+    font-size: var(--font-size-xl);
+  }
+
+  .logo-icon {
+    width: 30px;
+    height: 30px;
+  }
+}
