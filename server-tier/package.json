@@ -1,0 +1,41 @@
+{
+  "name": "server-tier",
+  "version": "1.0.0",
+  "description": "Scalable Multi-Platform Media Downloader Backend",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "video-downloader",
+    "yt-dlp",
+    "express",
+    "instagram-downloader",
+    "tiktok-downloader",
+    "twitter-downloader",
+    "facebook-downloader",
+    "pinterest-downloader",
+    "bull-queue",
+    "redis"
+  ],
+  "author": "Hadeed Ul Hassan",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.6.2",
+    "bull": "^4.14.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "joi": "^17.11.0",
+    "mongoose": "^9.1.2",
+    "redis": "^4.6.13",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

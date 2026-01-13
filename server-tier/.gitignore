@@ -1,0 +1,48 @@
+# Backend Gitignore
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+package-lock.json
+npm-debug.log
+yarn-error.log
+
+# OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Downloads folder
+downloads/
+temp/
+tmp/
+
+# Logs
+logs/
+*.log
+
+# Build output
+dist/
+build/
+
+# IDE
+*.swp
+*.swo
+*~
+.vscode
+.idea/
+*.iml
+
+# Testing
+coverage/
+.nyc_output/
+
+# Database
+*.db
+mongo_data/
+redis_data/
