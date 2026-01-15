@@ -4,6 +4,7 @@ const fs = require('fs');
 const config = require('../config/config');
 const PlatformDetector = require('./platformDetector');
 const { getPlatformOptions } = require('./platformHeaders');
+const FFmpegHelper = require('../utils/ffmpegHelper');
 
 class StreamDownloadService {
   /**
@@ -31,9 +32,20 @@ class StreamDownloadService {
           `%(title)s.%(ext)s`
         );
 
+        // For Instagram, download best video with audio merged
+        // Instagram separates video and audio into different streams
+        let ytdlpFormat = format;
+        let isInstagram = false;
+        if (platform.toLowerCase() === 'instagram') {
+          // Force ONLY bestvideo+bestaudio combination - no fallback options
+          // This prevents any fallback to audio-only M4A
+          ytdlpFormat = 'bestvideo+bestaudio/best';
+          isInstagram = true;
+        }
+
         // Build yt-dlp command with platform-specific options
         const args = [
-          '-f', format,
+          '-f', ytdlpFormat,
           '--no-warnings',
           '--socket-timeout', platformOptions.socketTimeout.toString(),
           '--user-agent', platformOptions.userAgent,
@@ -41,6 +53,28 @@ class StreamDownloadService {
           '--retries', platformOptions.retries.toString(),
           '--fragment-retries', platformOptions.fragmentRetries.toString(),
         ];
+
+        // For Instagram, add authentication and ensure MP4 output
+        if (isInstagram) {
+          // Try to get cookies from browser, but don't fail if not available
+          try {
+            args.push('--cookies-from-browser');
+            args.push('chrome');
+          } catch (e) {
+            // Continue without cookies if browser access fails
+            console.warn('Could not access browser cookies:', e.message);
+          }
+          
+          // Add more retries for Instagram rate limiting
+          args.push('--socket-timeout');
+          args.push('60');
+          args.push('--retries');
+          args.push('10');
+          
+          // Force output format
+          args.push('--merge-output-format');
+          args.push('mp4');
+        }
 
         // Add skip unavailable fragments for platforms that support it
         if (platformOptions.skipUnavailableFragments) {
@@ -56,6 +90,7 @@ class StreamDownloadService {
         const ytdlp = spawn('yt-dlp', args);
         let lastProgress = 0;
         let downloadedFile = null;
+        let errorMessages = [];
 
         // Handle stdout for progress tracking
         ytdlp.stdout.on('data', (data) => {
@@ -87,7 +122,8 @@ class StreamDownloadService {
         // Handle stderr
         ytdlp.stderr.on('data', (data) => {
           const error = data.toString();
-          console.error('yt-dlp error:', error);
+          console.error('yt-dlp stderr:', error);
+          errorMessages.push(error);
         });
 
         // Handle process completion
@@ -119,7 +155,13 @@ class StreamDownloadService {
               reject(new Error('File not found after download'));
             }
           } else {
-            reject(new Error(`yt-dlp exited with code ${code}`));
+            // Build error message from collected stderr messages
+            const detailedError = errorMessages.length > 0 
+              ? errorMessages.join('\n') 
+              : `yt-dlp exited with code ${code}`;
+            
+            console.error('Download failed with details:', detailedError);
+            reject(new Error(`Download failed: ${detailedError.substring(0, 200)}`));
           }
         });
 

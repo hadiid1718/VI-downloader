@@ -121,7 +121,15 @@ function buildDownloadCommand(url, platform, format = 'best', outputTemplate) {
   const options = getPlatformOptions(platform);
   let command = 'yt-dlp';
 
-  command += ` -f "${format}"`;
+  // For Instagram, download best video with audio merged
+  let downloadFormat = format;
+  if (platform.toLowerCase() === 'instagram') {
+    // Force ONLY bestvideo+bestaudio combination - no fallback options
+    // This prevents any fallback to audio-only M4A
+    downloadFormat = 'bestvideo+bestaudio';
+  }
+
+  command += ` -f "${downloadFormat}"`;
   command += ` --no-warnings`;
   command += ` --socket-timeout ${options.socketTimeout}`;
   command += ` --user-agent "${options.userAgent}"`;
@@ -138,6 +146,15 @@ function buildDownloadCommand(url, platform, format = 'best', outputTemplate) {
 
   if (options.skipUnavailableFragments) {
     command += ` --skip-unavailable-fragments`;
+  }
+
+  // For Instagram, ensure MP4 output and merge video with audio
+  if (platform.toLowerCase() === 'instagram') {
+    command += ` --cookies-from-browser chrome`;
+    command += ` --socket-timeout 60`;
+    command += ` --merge-output-format mp4`;
+    // Extra FFmpeg postprocessor args to ensure proper MP4 creation
+    command += ` --postprocessor-args 'FFmpegMergerPP:-c:v copy -c:a aac'`;
   }
 
   command += ` -o "${outputTemplate}"`;
